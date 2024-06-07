@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  encoder:
+    build: ./encoder
+    volumes:
+      - ./output:/usr/share/nginx/html/hls
+      - ./input:/input
+    ports:
+      - "8080:8080"
+
+  nginx:
+    build: ./nginx
+    ports:
+      - "80:8080"
+    volumes:
+      - ./output:/usr/share/nginx/html/hls
+    depends_on:
+      - encoder
+
+volumes:
+  output:
+  input:
