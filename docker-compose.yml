@@ -4,8 +4,7 @@ services:
   encoder:
     build: ./encoder
     volumes:
-      - ./output:/usr/share/nginx/html/hls
-      - ./input:/input
+      - output:/usr/share/nginx/html/hls
     ports:
       - "8080:8080"
 
@@ -14,10 +13,9 @@ services:
     ports:
       - "80:8080"
     volumes:
-      - ./output:/usr/share/nginx/html/hls
+      - output:/usr/share/nginx/html/hls
     depends_on:
       - encoder
 
 volumes:
   output:
-  input:

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 func encodeVideo(inputPath, outputPath string) error {
@@ -15,23 +16,27 @@ func encodeVideo(inputPath, outputPath string) error {
 		return err
 	}
 
-	cmd := exec.Command("ffmpeg", "-i", inputPath,
-		"-vf", "scale=1920:1080", "-c:v", "libx264", "-b:v", "2M", "-c:a", "aac", "-strict", "experimental", "-b:a", "192k", "-f", "hls", "-hls_time", "10", "-hls_list_size", "0", "-preset", "ultrafast", outputPath+"/1080p.m3u8",
-		"-vf", "scale=1280:720", "-c:v", "libx264", "-b:v", "1.5M", "-c:a", "aac", "-strict", "experimental", "-b:a", "128k", "-f", "hls", "-hls_time", "10", "-hls_list_size", "0", "-preset", "ultrafast", outputPath+"/720p.m3u8",
-		"-vf", "scale=854:480", "-c:v", "libx264", "-b:v", "1M", "-c:a", "aac", "-strict", "experimental", "-b:a", "96k", "-f", "hls", "-hls_time", "10", "-hls_list_size", "0", "-preset", "ultrafast", outputPath+"/480p.m3u8",
-		"-vf", "scale=640:360", "-c:v", "libx264", "-b:v", "500k", "-c:a", "aac", "-strict", "experimental", "-b:a", "64k", "-f", "hls", "-hls_time", "10", "-hls_list_size", "0", "-preset", "ultrafast", outputPath+"/360p.m3u8",
-	)
+cmd := exec.Command("ffmpeg", "-i", inputPath,
+	"-map", "0:v:0", "-map", "0:a:0",
+	"-map", "0:v:0", "-map", "0:a:0",
+	"-map", "0:v:0", "-map", "0:a:0",
+	"-map", "0:v:0", "-map", "0:a:0",
+	"-c:v", "libx264", "-crf", "22", "-c:a", "aac", "-ar", "48000",
+	"-filter:v:0", "scale=w=480:h=360", "-maxrate:v:0", "600k", "-b:a:0", "64k",
+	"-filter:v:1", "scale=w=640:h=480", "-maxrate:v:1", "900k", "-b:a:1", "128k",
+	"-filter:v:2", "scale=w=1280:h=720", "-maxrate:v:2", "1500k", "-b:a:2", "128k",
+	"-filter:v:3", "scale=w=1920:h=1080", "-maxrate:v:3", "3000k", "-b:a:3", "192k",
+	"-preset", "slow", "-hls_list_size", "0", "-threads", "0", "-f", "hls",
+	"-var_stream_map", "v:0,a:0 v:1,a:1 v:2,a:2 v:3,a:3",
+	"-master_pl_name", "master.m3u8",
+	outputPath+"/video-%v.m3u8",
+)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
-		return
-	}
-
 	file, header, err := r.FormFile("video")
 	if err != nil {
 		log.Println(err)
@@ -40,30 +45,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	// fileNamePath, err := os.ReadDir("./input")
-	// if err != nil {
-	// 	log.Println(err)
-	// }
-	// log.Println(fileNamePath)
+	filename := strings.ReplaceAll(header.Filename, " ", "_")
 	inputPath := filepath.Join("/input", header.Filename)
-	outputPath := filepath.Join("/output", header.Filename)
+	outputPath := filepath.Join("/usr/share/nginx/html/hls", strings.ToLower(filename))
 
-	log.Println("Saving video to", inputPath)
-	log.Println("Saving encoded video to", outputPath)
-
-		// // Check if the input directory exists
-		// if _, err := os.Stat("/input"); os.IsNotExist(err) {
-		// 	log.Println("/input directory does not exist")
-		// 	http.Error(w, "/input directory does not exist", http.StatusInternalServerError)
-		// 	return
-		// }
-	
-		// // Check if the output directory exists
-		// if _, err := os.Stat("/output"); os.IsNotExist(err) {
-		// 	log.Println("/output directory does not exist")
-		// 	http.Error(w, "/output directory does not exist", http.StatusInternalServerError)
-		// 	return
-		// }
 	out, err := os.Create(inputPath)
 	if err != nil {
 		log.Println(err)
@@ -90,7 +75,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	http.HandleFunc("/upload", uploadHandler)
+	http.HandleFunc("POST /upload", uploadHandler)
 	fmt.Println("Server started on port 8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
